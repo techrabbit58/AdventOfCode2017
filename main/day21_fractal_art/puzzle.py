@@ -15,7 +15,7 @@ def rotate(square: str) -> str:
 def flip(square: str) -> str:
     """flip a square horizontal"""
     rows = [reversed(row) for row in square.split('/')]
-    return '/'.join(''.join(triple) for triple in zip(*rows))
+    return '/'.join(''.join(triple) for triple in rows)
 
 
 def variants(square: str) -> Iterable[str]:
@@ -23,8 +23,8 @@ def variants(square: str) -> Iterable[str]:
     return an iterator that allows to go through all variant of a given
     square in turn, so that the variants can be used to match a
     rule's key. Iterates through 4 variants (4 x rotate) if the square
-    has size 2, and through 8 variants (one flip, and then 4 mpre rotates)
-    if the square has size 3
+    has size 2, and through 8 variants (one flip, and then additional
+    4 x rotate) if the square has size 3
     """
     for _ in range(4):
         yield square
@@ -46,7 +46,7 @@ def parse(puzzle) -> dict[str, str]:
     rules: dict[str, str] = {}
     with open(puzzle) as file:
         for line in file.readlines():
-            k, v = line.split(' => ')
+            k, v = line.strip().split(' => ')
             rules[k] = v
     return rules
 
@@ -56,23 +56,58 @@ def size_of(grid: str) -> int:
     return grid.index('/')
 
 
-def match_rule(rules: dict[str, str], square: str) -> str | None:
+def match_rule(square: str, rules: dict[str, str]) -> str | None:
     """check all variants of the square: find the matching rule key and return its value"""
-    for k in variants(square):
-        if k in rules:
-            return rules[k]
-    raise ValueError(f'square {square} did not match any rule')
+    for variant in variants(square):
+        if variant in rules:
+            return rules[variant]
+    print(f'square {square} did not match any rule')
+    raise RuntimeError()
 
 
-def part1(puzzle: str):
+def split(grid: str) -> tuple[list[str], int]:
+    size = size_of(grid)
+    divider = 2 if size % 2 == 0 else 3
+    squares = []
+    grid_rows = grid.split('/')
+    for row in range(0, size, divider):
+        for col in range(0, size, divider):
+            single_square = []
+            for offset in range(divider):
+                single_square.append(grid_rows[row + offset][col:col + divider])
+            squares.append('/'.join(single_square))
+    return squares, size // divider
+
+
+def combine(squares: list[str], width: int) -> str:
+    """
+    combine a list of squares back to a whole grid. Combine any
+    squares_per_row squares to a new row. Return the combined
+    grid as a single string
+    """
+    element_size = size_of(squares[0])
+    grid_rows = [''] * (element_size * width)
+    for pos, single_square in enumerate(squares):
+        square_rows = single_square.split('/')
+        for offset, square_row in enumerate(square_rows):
+            grid_rows[offset + element_size * (pos // width)] += square_row
+    return '/'.join(grid_rows)
+
+
+def solve(puzzle: str, iterations: int) -> int:
     rules = parse(puzzle)
     grid = INITIAL
-    print(match_rule(rules, grid))
-    print(match_rule(rules, '../.#'))
+    for i in range(iterations):
+        squares, width = split(grid)
+        squares = [match_rule(sq, rules) for sq in squares]
+        grid = combine(squares, width)
+    return grid.count('#')
 
 
 def main():
-    part1('test1.txt')
+    print(f'part 1 ..test..: {"OK" if solve("test.txt", 2) == 12 else "Fail!"}')
+    print(f'part 1 solution {solve("puzzle.txt", 5)}, shall be 205')
+    print(f'part 2 solution {solve("puzzle.txt", 18)}, shall be 3389823')
 
 
 if __name__ == '__main__':
